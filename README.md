@@ -16,9 +16,15 @@ The [Build native MarkText](.github/workflows/build.yml) workflow:
    dependencies,
 3. compiles `packages/desktop` with the
    [NativeBoat Build action](https://github.com/XTSoftwareLabs/nativeboat-action),
-4. publishes the executable, a ZIP of the full output folder and
-   `SHA256SUMS.txt` to a release named after the MarkText tag.
+4. uploads the executable, a ZIP of the full output folder and
+   `SHA256SUMS.txt` as a workflow artifact.
 
-Pushes to `main` rebuild and update the release; pull requests build only. To
-build another MarkText tag or NativeBoat version, run the workflow manually
-from the Actions tab and set `marktext-ref` and `nativeboat-version`.
+It runs on pushes to `main` and on pull requests, and publishes nothing.
+
+## Releasing
+
+Run the [Release native MarkText](.github/workflows/release.yml) workflow from
+the Actions tab. Set `marktext-ref` to the MarkText tag to build and
+`nativeboat-version` to a NativeBoat release tag or `latest`. It runs the build
+above, then publishes its files to a release named after the MarkText tag.
+Running it again for the same tag replaces that release's files.
