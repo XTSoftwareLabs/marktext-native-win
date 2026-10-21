@@ -1,0 +1,123 @@
+name: Build native MarkText
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      marktext-ref:
+        description: MarkText tag to build from marktext/marktext
+        required: true
+        default: v0.20.0
+      nativeboat-version:
+        description: NativeBoat release tag, or latest
+        required: true
+        default: latest
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MARKTEXT_REF: ${{ inputs.marktext-ref || 'v0.20.0' }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      marktext-ref: ${{ env.MARKTEXT_REF }}
+      nativeboat-version: ${{ steps.nativeboat.outputs.version }}
+      marktext-commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - name: Check out MarkText source
+        uses: actions/checkout@v7
+        with:
+          repository: marktext/marktext
+          ref: ${{ env.MARKTEXT_REF }}
+          path: marktext
+          persist-credentials: false
+
+      - name: Record source commit
+        id: source
+        shell: pwsh
+        run: '"commit=$(git -C marktext rev-parse HEAD)" >> $env:GITHUB_OUTPUT'
+
+      # NativeBoat installs the project's dependencies itself, with the
+      # project's package manager.
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: marktext/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22.21.1'
+
+      - name: Build with NativeBoat
+        id: nativeboat
+        uses: XTSoftwareLabs/nativeboat-action@main
+        with:
+          project-path: marktext/packages/desktop
+          output-path: ${{ github.workspace }}/native-dist
+          version: ${{ inputs.nativeboat-version || 'latest' }}
+          analyze: 'true'
+
+      - name: Package output
+        id: package
+        shell: pwsh
+        env:
+          OUTPUT: ${{ steps.nativeboat.outputs.output-path }}
+          EXECUTABLE: ${{ steps.nativeboat.outputs.executable }}
+        run: |
+          if (-not $env:EXECUTABLE) { throw 'NativeBoat did not produce a single executable.' }
+          Get-ChildItem -LiteralPath $env:OUTPUT -Recurse | Format-Table FullName, Length
+          $name = "MarkText-$env:MARKTEXT_REF-native-win-x64"
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item -LiteralPath $env:EXECUTABLE -Destination "release/$name.exe"
+          Compress-Archive -Path (Join-Path $env:OUTPUT '*') -DestinationPath "release/$name.zip"
+          Get-ChildItem release | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower(), $_.Name
+          } | Set-Content -Encoding utf8NoBOM release/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: marktext-native-win-x64
+          path: release/
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: marktext-native-win-x64
+          path: release
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.marktext-ref }}
+          NATIVEBOAT: ${{ needs.build.outputs.nativeboat-version }}
+          COMMIT: ${{ needs.build.outputs.marktext-commit }}
+        run: |
+          cat > notes.md <<EOF
+          Native Windows x64 build of [MarkText ${TAG}](https://github.com/marktext/marktext/releases/tag/${TAG})
+          (source commit marktext/marktext@${COMMIT}), compiled with
+          [NativeBoat ${NATIVEBOAT}](https://github.com/XTSoftwareLabs/nativeboat-release/releases/tag/${NATIVEBOAT}).
+
+          The executable runs without Chromium, WebView2 or Node.js. Download the
+          \`.exe\` to run it directly, or the \`.zip\` for the complete output folder.
+          EOF
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
+            gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" release/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "MarkText ${TAG} (native Windows)" --notes-file notes.md
+          fi
