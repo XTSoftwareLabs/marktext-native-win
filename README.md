@@ -44,6 +44,6 @@ The [Build native MarkText](.github/workflows/build.yml) workflow:
 2. sets up Node.js and pnpm, which NativeBoat uses to install the project's
    dependencies,
 3. compiles `packages/desktop` with the
-   [NativeBoat Build action](https://github.com/XTSoftwareLabs/nativeboat-action),
+   [NativeBoat Build action](https://github.com/marketplace/actions/nativeboat-build) (`@v1`),
 4. uploads the executable, a ZIP of the full output folder and
    `SHA256SUMS.txt` as a workflow artifact.
