@@ -1,0 +1,60 @@
+name: Release native MarkText
+
+on:
+  workflow_dispatch:
+    inputs:
+      marktext-ref:
+        description: MarkText tag to build from marktext/marktext; also the release tag
+        required: true
+        default: v0.20.0
+      nativeboat-version:
+        description: NativeBoat release tag, or latest
+        required: true
+        default: latest
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.marktext-ref }}
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      marktext-ref: ${{ inputs.marktext-ref }}
+      nativeboat-version: ${{ inputs.nativeboat-version }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: marktext-native-win-x64
+          path: release
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.marktext-ref }}
+          NATIVEBOAT: ${{ needs.build.outputs.nativeboat-version }}
+          COMMIT: ${{ needs.build.outputs.marktext-commit }}
+        run: |
+          cat > notes.md <<EOF
+          Native Windows x64 build of [MarkText ${TAG}](https://github.com/marktext/marktext/releases/tag/${TAG})
+          (source commit marktext/marktext@${COMMIT}), compiled with
+          [NativeBoat ${NATIVEBOAT}](https://github.com/XTSoftwareLabs/nativeboat-release/releases/tag/${NATIVEBOAT}).
+
+          The executable runs without Chromium, WebView2 or Node.js. Download the
+          \`.exe\` to run it directly, or the \`.zip\` for the complete output folder.
+          EOF
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
+            gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" release/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "MarkText ${TAG} (native Windows)" --notes-file notes.md
+          fi
