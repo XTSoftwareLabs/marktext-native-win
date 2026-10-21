@@ -51,7 +51,8 @@ jobs:
           [NativeBoat $env:NATIVEBOAT](https://github.com/XTSoftwareLabs/nativeboat-release/releases/tag/$env:NATIVEBOAT).
 
           The executable runs without Chromium, WebView2 or Node.js. Download the
-          ``.exe`` to run it directly, or the ``.zip`` for the complete output folder.
+          ``.zip``, extract the whole folder, and run ``MarkText.exe`` from it; the
+          executable needs the other files in that folder.
           "@ | Set-Content -Encoding utf8NoBOM notes.md
           $files = (Get-ChildItem release -File).FullName
           gh release view $env:TAG --repo $env:GITHUB_REPOSITORY *> $null
@@ -61,6 +62,11 @@ jobs:
           if ($exists) {
             gh release edit $env:TAG --repo $env:GITHUB_REPOSITORY --notes-file notes.md
             gh release upload $env:TAG @files --repo $env:GITHUB_REPOSITORY --clobber
+            # Remove files an earlier build published that this build does not.
+            $names = (Get-ChildItem release -File).Name
+            gh release view $env:TAG --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name' |
+              Where-Object { $_ -notin $names } |
+              ForEach-Object { gh release delete-asset $env:TAG $_ --repo $env:GITHUB_REPOSITORY --yes }
           } else {
             gh release create $env:TAG @files --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA `
               --title "MarkText $env:TAG (native Windows)" --notes-file notes.md

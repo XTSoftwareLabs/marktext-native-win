@@ -71,6 +71,8 @@ jobs:
           version: ${{ inputs.nativeboat-version || 'latest' }}
           analyze: 'true'
 
+      # The executable needs the other files in the output folder, so only the
+      # whole folder is published, as a ZIP.
       - name: Package output
         shell: pwsh
         env:
@@ -81,7 +83,6 @@ jobs:
           Get-ChildItem -LiteralPath $env:OUTPUT -Recurse | Format-Table FullName, Length
           $name = "MarkText-$env:MARKTEXT_REF-native-win-x64"
           New-Item -ItemType Directory -Force release | Out-Null
-          Copy-Item -LiteralPath $env:EXECUTABLE -Destination "release/$name.exe"
           Compress-Archive -Path (Join-Path $env:OUTPUT '*') -DestinationPath "release/$name.zip"
           Get-ChildItem release | ForEach-Object {
             "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower(), $_.Name
