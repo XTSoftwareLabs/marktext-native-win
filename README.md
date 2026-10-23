@@ -9,23 +9,23 @@ Download a build from the [releases](../../releases) page.
 
 ## Compared with the Electron build
 
-MarkText v0.20.0 native release against the official Electron build
-(`marktext-win-x64-0.20.0`):
+MarkText v0.20.0 native release, built with NativeBoat v0.1.0-alpha.2, against
+the official Electron build (`marktext-win-x64-0.20.0`):
 
 | Metric | Electron | Native | Change |
 |---|---:|---:|---:|
-| Download (ZIP) | 176.0 MB | 91.4 MB | 48% smaller |
-| Installed folder | 458.7 MB | 285.2 MB | 38% smaller |
+| Download (ZIP) | 166.0 MB | 88.5 MB | 47% smaller |
+| Installed folder | 458.7 MB | 274.9 MB | 40% smaller |
 | Files on disk | 108 | 23 | 79% fewer |
-| Time to window | 782 ms | 161 ms | 4.9× faster |
-| Time to open a document | 1,399 ms | 1,000 ms | 29% faster |
-| CPU time to start | 2.92 s | 0.84 s | 71% less |
-| CPU when idle | 0.23% | 0.00% | 100% less |
+| Time to window | 794 ms | 150 ms | 5.3× faster |
+| Time to open a document | 1,427 ms | 1,018 ms | 29% faster |
+| CPU time to start | 2.17 s | 0.89 s | 59% less |
+| CPU when idle | 0.21% | 0.00% | 100% less |
 | Processes | 5 | 1 | 80% fewer |
-| Memory (working set) | 451.1 MB | 280.2 MB | 38% less |
-| Memory (private bytes) | 285.9 MB | 208.2 MB | 27% less |
-| Threads | 111 | 8 | 93% fewer |
-| Handles | 2,194 | 227 | 90% fewer |
+| Memory (working set) | 461.3 MB | 279.8 MB | 39% less |
+| Memory (private bytes) | 296.0 MB | 207.9 MB | 30% less |
+| Threads | 112 | 8 | 93% fewer |
+| Handles | 2,205 | 227 | 90% fewer |
 
 Measured on Windows 10 22H2 with an Intel Core i7-8750H and 8 GB of RAM,
 opening a short Markdown file. Each figure is the median of three runs.
