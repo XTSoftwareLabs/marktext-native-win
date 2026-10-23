@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       marktext-ref:
-        description: MarkText tag to build from marktext/marktext; also the release tag
+        description: MarkText tag to build from marktext/marktext; releases are tagged <tag>.1, <tag>.2, ...
         required: true
         default: v0.20.0
       nativeboat-version:
@@ -40,13 +40,32 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.build.outputs.marktext-ref }}
+          REF: ${{ needs.build.outputs.marktext-ref }}
           NATIVEBOAT: ${{ needs.build.outputs.nativeboat-version }}
           COMMIT: ${{ needs.build.outputs.marktext-commit }}
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          # Every build gets its own release, tagged with the MarkText tag plus
+          # a build number (v0.20.0.1, v0.20.0.2, ...), so a rebuild never
+          # replaces an earlier release.
+          $prefix = "refs/tags/$env:REF."
+          $last = gh api --paginate "repos/$env:GITHUB_REPOSITORY/git/matching-refs/tags/$env:REF." --jq '.[].ref' |
+            Where-Object { $_.StartsWith($prefix) -and $_.Substring($prefix.Length) -match '^\d+$' } |
+            ForEach-Object { [int]$_.Substring($prefix.Length) } |
+            Measure-Object -Maximum
+          $tag = "$env:REF.$([int]$last.Maximum + 1)"
+          "Release tag: $tag"
+
+          # Name the ZIP after the release, and list it under that name.
+          Get-ChildItem release -Filter "*-$env:REF-*.zip" |
+            Rename-Item -NewName { $_.Name.Replace("-$env:REF-", "-$tag-") }
+          Get-ChildItem release -Filter *.zip | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower(), $_.Name
+          } | Set-Content -Encoding utf8NoBOM release/SHA256SUMS.txt
+
           @"
-          Native Windows x64 build of [MarkText $env:TAG](https://github.com/marktext/marktext/releases/tag/$env:TAG)
+          Native Windows x64 build of [MarkText $env:REF](https://github.com/marktext/marktext/releases/tag/$env:REF)
           (source commit marktext/marktext@$env:COMMIT), compiled with
           [NativeBoat $env:NATIVEBOAT](https://github.com/XTSoftwareLabs/nativeboat-release/releases/tag/$env:NATIVEBOAT).
 
@@ -55,19 +74,5 @@ jobs:
           executable needs the other files in that folder.
           "@ | Set-Content -Encoding utf8NoBOM notes.md
           $files = (Get-ChildItem release -File).FullName
-          gh release view $env:TAG --repo $env:GITHUB_REPOSITORY *> $null
-          $exists = $LASTEXITCODE -eq 0
-          # Fail on any gh error from here on.
-          $PSNativeCommandUseErrorActionPreference = $true
-          if ($exists) {
-            gh release edit $env:TAG --repo $env:GITHUB_REPOSITORY --notes-file notes.md
-            gh release upload $env:TAG @files --repo $env:GITHUB_REPOSITORY --clobber
-            # Remove files an earlier build published that this build does not.
-            $names = (Get-ChildItem release -File).Name
-            gh release view $env:TAG --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name' |
-              Where-Object { $_ -notin $names } |
-              ForEach-Object { gh release delete-asset $env:TAG $_ --repo $env:GITHUB_REPOSITORY --yes }
-          } else {
-            gh release create $env:TAG @files --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA `
-              --title "MarkText $env:TAG (native Windows)" --notes-file notes.md
-          }
+          gh release create $tag @files --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA `
+            --title "MarkText $tag (native Windows)" --notes-file notes.md

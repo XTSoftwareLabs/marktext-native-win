@@ -45,3 +45,8 @@ The [Build native MarkText](.github/workflows/build.yml) workflow:
 4. uploads a ZIP of the full output folder and its `SHA256SUMS.txt` as a
    workflow artifact. The executable needs the other files in that folder, so
    it is not published on its own.
+
+The [Release native MarkText](.github/workflows/release.yml) workflow runs that
+build and publishes it as a new release. Each release is tagged with the
+MarkText tag plus a build number (`v0.20.0.1`, `v0.20.0.2`, ...), so a rebuild,
+for example with a newer NativeBoat, never replaces an earlier release.
