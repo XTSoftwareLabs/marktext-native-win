@@ -1,0 +1,77 @@
+name: Compare with Electron
+
+# Measures a published native release against the official Electron build of
+# the same MarkText version, and publishes the README table as the run's
+# summary and as an artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-tag:
+        description: Native release tag to measure, such as v0.20.0.2; empty for the latest release
+        required: false
+        default: ''
+      runs:
+        description: Measured runs per build, after one warm-up run each
+        required: true
+        default: '3'
+  pull_request:
+    paths:
+      - scripts/Compare-Electron.ps1
+      - .github/workflows/compare.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download both builds
+        id: builds
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release-tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $tag = $env:TAG
+          if (-not $tag) { $tag = gh release view --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName }
+          # Releases are tagged with the MarkText tag plus a build number
+          # (v0.20.0.2); the first release was tagged with the MarkText tag alone.
+          $ref = $tag -replace '^(v\d+\.\d+\.\d+)\.\d+$', '$1'
+          $version = $ref.TrimStart('v')
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern '*.zip' --dir native
+          gh release download $ref --repo marktext/marktext --pattern "marktext-win-x64-$version.zip" --dir electron
+          $native = @(Get-ChildItem native -Filter *.zip)
+          if ($native.Count -ne 1) { throw "Expected one ZIP in release $tag, found $($native.Count)." }
+          "native-zip=$($native[0].FullName)" >> $env:GITHUB_OUTPUT
+          "electron-zip=$((Get-Item "electron/marktext-win-x64-$version.zip").FullName)" >> $env:GITHUB_OUTPUT
+          "heading=MarkText $tag native release against the official Electron build (``marktext-win-x64-$version``):" >> $env:GITHUB_OUTPUT
+
+      - name: Measure
+        shell: pwsh
+        env:
+          NATIVE_ZIP: ${{ steps.builds.outputs.native-zip }}
+          ELECTRON_ZIP: ${{ steps.builds.outputs.electron-zip }}
+          HEADING: ${{ steps.builds.outputs.heading }}
+          RUNS: ${{ inputs.runs || '3' }}
+        run: |
+          ./scripts/Compare-Electron.ps1 -NativeZip $env:NATIVE_ZIP -ElectronZip $env:ELECTRON_ZIP `
+            -Heading $env:HEADING -Runs ([int]$env:RUNS) -OutDir comparison
+          Get-Content comparison/comparison.md | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: electron-comparison
+          path: comparison/
+          if-no-files-found: error
