@@ -2,7 +2,7 @@
 
 Native Windows x64 builds of [MarkText](https://github.com/marktext/marktext),
 compiled from MarkText's unchanged source with
-[NativeBoat](https://github.com/XTSoftwareLabs/nativeboat-release). The
+[NativeBoat](https://github.com/XTSoftwareLabs/nativeboat). The
 executable runs without Chromium, WebView2 or Node.js.
 
 Download a build from the [releases](../../releases) page.
@@ -41,7 +41,7 @@ The [Build native MarkText](.github/workflows/build.yml) workflow:
 2. sets up Node.js and pnpm, which NativeBoat uses to install the project's
    dependencies,
 3. compiles `packages/desktop` with the
-   [NativeBoat Build action](https://github.com/marketplace/actions/nativeboat-build) (`@v1`),
+   [NativeBoat Build action](https://github.com/marketplace/actions/nativeboat-build) (`@v1.0.1`),
 4. uploads a ZIP of the full output folder and its `SHA256SUMS.txt` as a
    workflow artifact. The executable needs the other files in that folder, so
    it is not published on its own.

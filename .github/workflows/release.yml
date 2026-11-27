@@ -67,7 +67,7 @@ jobs:
           @"
           Native Windows x64 build of [MarkText $env:REF](https://github.com/marktext/marktext/releases/tag/$env:REF)
           (source commit marktext/marktext@$env:COMMIT), compiled with
-          [NativeBoat $env:NATIVEBOAT](https://github.com/XTSoftwareLabs/nativeboat-release/releases/tag/$env:NATIVEBOAT).
+          [NativeBoat $env:NATIVEBOAT](https://github.com/XTSoftwareLabs/nativeboat/releases/tag/$env:NATIVEBOAT).
 
           The executable runs without Chromium, WebView2 or Node.js. Download the
           ``.zip``, extract the whole folder, and run ``MarkText.exe`` from it; the

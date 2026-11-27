@@ -64,7 +64,7 @@ jobs:
 
       - name: Build with NativeBoat
         id: nativeboat
-        uses: XTSoftwareLabs/nativeboat-action@v1
+        uses: XTSoftwareLabs/nativeboat-action@v1.0.1
         with:
           project-path: marktext/packages/desktop
           output-path: ${{ github.workspace }}/native-dist
