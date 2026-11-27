@@ -168,13 +168,13 @@ foreach ($b in $builds.Values) {
   Write-Host "Warm-up: $($b.Name)"
   Measure-Run $b | Out-Null
 }
-$runs = @{ electron = @(); native = @() }
+$results = @{ electron = @(); native = @() }
 for ($i = 1; $i -le $Runs; $i++) {
   foreach ($key in $builds.Keys) {
     Write-Host "Run $i/$($Runs): $key"
     $r = Measure-Run $builds[$key]
     $r | Format-List | Out-String | Write-Host
-    $runs[$key] += $r
+    $results[$key] += $r
   }
 }
 
@@ -182,7 +182,7 @@ $median = @{}
 foreach ($key in $builds.Keys) {
   $m = [ordered]@{}
   foreach ($prop in 'WindowMs', 'OpenMs', 'StartCpu', 'IdleCpu', 'Processes', 'WorkingSet', 'PrivateBytes', 'Threads', 'Handles') {
-    $m[$prop] = Get-Median ($runs[$key] | ForEach-Object $prop)
+    $m[$prop] = Get-Median ($results[$key] | ForEach-Object $prop)
   }
   $median[$key] = [pscustomobject]$m
 }
@@ -244,8 +244,8 @@ $lines = @(
 $lines | Set-Content -Encoding utf8NoBOM (Join-Path $OutDir 'comparison.md')
 
 [ordered]@{
-  native   = [ordered]@{ zip = (Split-Path -Leaf $NativeZip); build = $n; median = $nm; runs = $runs.native }
-  electron = [ordered]@{ zip = (Split-Path -Leaf $ElectronZip); build = $e; median = $em; runs = $runs.electron }
+  native   = [ordered]@{ zip = (Split-Path -Leaf $NativeZip); build = $n; median = $nm; runs = $results.native }
+  electron = [ordered]@{ zip = (Split-Path -Leaf $ElectronZip); build = $e; median = $em; runs = $results.electron }
   machine  = [ordered]@{ os = "$($os.Caption) $($os.Version)"; cpu = $cpu; logicalProcessors = [Environment]::ProcessorCount; ramGB = $ram }
   method   = [ordered]@{ runs = $Runs; settleSeconds = $SettleSeconds; idleSeconds = $IdleSeconds; document = $documentName }
 } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8NoBOM (Join-Path $OutDir 'comparison.json')
