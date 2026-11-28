@@ -93,3 +93,14 @@ jobs:
           name: marktext-native-win-x64
           path: release/
           if-no-files-found: error
+
+  # Measures the build against the official Electron build. The figures are
+  # for information, so a failed measurement does not fail the build.
+  compare:
+    needs: build
+    uses: ./.github/workflows/compare.yml
+    with:
+      artifact: marktext-native-win-x64
+      marktext-ref: ${{ needs.build.outputs.marktext-ref }}
+      nativeboat-version: ${{ needs.build.outputs.nativeboat-version }}
+      continue-on-error: true

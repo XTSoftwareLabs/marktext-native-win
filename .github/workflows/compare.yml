@@ -1,0 +1,108 @@
+name: Compare with Electron
+
+# Measures a native build against the official Electron build of the same
+# MarkText version, and publishes the README table as the run's summary and as
+# an artifact. The Build native MarkText workflow calls it for every build;
+# run it by hand to measure a published release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-tag:
+        description: Native release tag to measure, such as v0.20.0.2; empty for the latest release
+        required: false
+        default: ''
+      runs:
+        description: Measured runs per build, after one warm-up run each
+        required: true
+        default: '3'
+  workflow_call:
+    inputs:
+      artifact:
+        description: Name of this run's artifact that holds the native ZIP
+        type: string
+        required: true
+      marktext-ref:
+        description: MarkText tag the build was made from
+        type: string
+        required: true
+      nativeboat-version:
+        description: NativeBoat release tag the build was compiled with
+        type: string
+        required: true
+      runs:
+        type: string
+        default: '3'
+      continue-on-error:
+        description: Do not fail the calling workflow when the measurement fails
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: windows-latest
+    continue-on-error: ${{ inputs.continue-on-error || false }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download the native build
+        if: inputs.artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact }}
+          path: native
+
+      - name: Download the Electron build
+        id: builds
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release-tag }}
+          ARTIFACT: ${{ inputs.artifact }}
+          MARKTEXT_REF: ${{ inputs.marktext-ref }}
+          NATIVEBOAT: ${{ inputs.nativeboat-version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          if ($env:ARTIFACT) {
+            $ref = $env:MARKTEXT_REF
+            $subject = "MarkText $ref native build (NativeBoat $env:NATIVEBOAT)"
+          } else {
+            $tag = $env:TAG
+            if (-not $tag) { $tag = gh release view --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName }
+            # Releases are tagged with the MarkText tag plus a build number
+            # (v0.20.0.2); the first release was tagged with the MarkText tag alone.
+            $ref = $tag -replace '^(v\d+\.\d+\.\d+)\.\d+$', '$1'
+            $subject = "MarkText $tag native release"
+            gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern '*.zip' --dir native
+          }
+          $version = $ref.TrimStart('v')
+          gh release download $ref --repo marktext/marktext --pattern "marktext-win-x64-$version.zip" --dir electron
+          $native = @(Get-ChildItem native -Filter *.zip)
+          if ($native.Count -ne 1) { throw "Expected one native ZIP, found $($native.Count)." }
+          "native-zip=$($native[0].FullName)" >> $env:GITHUB_OUTPUT
+          "electron-zip=$((Get-Item "electron/marktext-win-x64-$version.zip").FullName)" >> $env:GITHUB_OUTPUT
+          "heading=$subject against the official Electron build (``marktext-win-x64-$version``):" >> $env:GITHUB_OUTPUT
+
+      - name: Measure
+        shell: pwsh
+        env:
+          NATIVE_ZIP: ${{ steps.builds.outputs.native-zip }}
+          ELECTRON_ZIP: ${{ steps.builds.outputs.electron-zip }}
+          HEADING: ${{ steps.builds.outputs.heading }}
+          RUNS: ${{ inputs.runs || '3' }}
+        run: |
+          ./scripts/Compare-Electron.ps1 -NativeZip $env:NATIVE_ZIP -ElectronZip $env:ELECTRON_ZIP `
+            -Heading $env:HEADING -Runs ([int]$env:RUNS) -OutDir comparison
+          Get-Content comparison/comparison.md | Add-Content $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: electron-comparison
+          path: comparison/
+          if-no-files-found: error

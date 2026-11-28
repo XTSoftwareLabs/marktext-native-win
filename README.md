@@ -44,7 +44,12 @@ The [Build native MarkText](.github/workflows/build.yml) workflow:
    [NativeBoat Build action](https://github.com/marketplace/actions/nativeboat-build) (`@v1.0.1`),
 4. uploads a ZIP of the full output folder and its `SHA256SUMS.txt` as a
    workflow artifact. The executable needs the other files in that folder, so
-   it is not published on its own.
+   it is not published on its own,
+5. measures that build against the official Electron build with the
+   [Compare with Electron](.github/workflows/compare.yml) workflow, which
+   writes the table above, for the runner it ran on, to the run's summary
+   and its `electron-comparison` artifact. Run that workflow by hand to
+   measure a published release.
 
 The [Release native MarkText](.github/workflows/release.yml) workflow runs that
 build and publishes it as a new release. Each release is tagged with the
